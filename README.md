@@ -1,9 +1,10 @@
-Imported from http://www.ahammer.ch/141
+= LVM Cache Statistics
 
 lvmcache-statistics.sh displays the LVM cache statistics
 in a user friendly manner
 
 Copyright (C) 2014 Armin Hammer 
+Copyright (C) 2023 Jaco Kroon
 
 This program is free software: you can redistribute it and/or modify 
 it under the terms of the GNU General Public License as published by 
@@ -20,3 +21,6 @@ with this program. If not, see http://www.gnu.org/licenses/.
 
 History:
 20141220 hammerar, initial version
+20230803 jkroon:
+* amended to auto-detect and report on all cache volumes.
+* work even if there are snapshots of cached volumes (albeit with extra -real after LV name)

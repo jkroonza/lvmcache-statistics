@@ -1,123 +1,106 @@
-#!/bin/bash 
+#!/bin/bash
 #
 # lvmcache-statistics.sh displays the LVM cache statistics
 # in a user friendly manner
 #
-# Copyright (C) 2014 Armin Hammer 
+# Copyright (C) 2014 Armin Hammer
+# Copyright (C) 2023 Jaco Kroon
 #
-# This program is free software: you can redistribute it and/or modify 
-# it under the terms of the GNU General Public License as published by 
-# the Free Software Foundation, either version 3 of the License, or (at 
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
 # your option) any later version.
 #
-# This program is distributed in the hope that it will be useful, but 
-# WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY 
-# or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License 
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+# or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License
 # for more details.
 #
-# You should have received a copy of the GNU General Public License along 
+# You should have received a copy of the GNU General Public License along
 # with this program. If not, see http://www.gnu.org/licenses/.
 #
 # History:
 # 20141220 hammerar, initial version
+# 20230803 jkroon:
+#   - amended to auto-detect and report on all cache volumes.
+#   - work even if there are snapshots of cached volumes (albeit with extra -real after LV name)
 #
 ##################################################################
 set -o nounset
 
-LVCACHED=/dev/vg00/lvol0
+exec 3< <(exec dmsetup status --target cache) || exit 1
 
-RESULT=$(dmsetup status ${LVCACHED})
-if [ $? -ne 0 ]; then
-  echo "Unsuccessfull readout of <${LVCACHED}>! Abort...!"
-  exit 1
-fi
+while IFS=' ' read -a RESULTS <&3; do
+	##################################################################
+	# Reference : https://www.kernel.org/doc/Documentation/
+	##################################################################
+	#
+	# dmsetup status --target cache
+	# vg-lv: 0 934174720 cache 8 5178/1310720 128 963/1638400 24453 7501 5164 492458 0 8 0 \
+	# 1 writeback 2 migration_threshold 2048 mq 10 random_threshold 4 sequential_threshold 512 \
+	# discard_promote_adjustment 1 read_promote_adjustment 4 write_promote_adjustment 8
+	#
+	# the VG or LV name will have a double - if there is a - in the name, eg:
+	# v--g-l--v for vg=v-g and lv=l-v.
 
-# http://stackoverflow.com/questions/10586153/bash-split-string-into-array
-IFS=' ' read -a RESULTS <<< "${RESULT}"
+	if ! [[ "${RESULTS[0]}" =~ ^(([^-]|--)+)-(([^-]|--)+):$ ]]; then
+		echo "ERROR: Unable to parse VG-LV from ${RESULT[0]} (skipping)" >&2
+		continue
+	fi
 
-##################################################################
-# Reference : https://www.kernel.org/doc/Documentation/
-##################################################################
-#
-# dmsetup status /dev/vg00/lvol1
-# 0 934174720 cache 8 5178/1310720 128 963/1638400 24453 7501 5164 492458 0 8 0 \
-# 1 writeback 2 migration_threshold 2048 mq 10 random_threshold 4 sequential_threshold 512 \
-# discard_promote_adjustment 1 read_promote_adjustment 4 write_promote_adjustment 8
+	VG="${BASH_REMATCH[1]}"
+	LV="${BASH_REMATCH[3]}"
+	VG="${VG//--/-}"
+	LG="${LV//--/-}"
 
-MetadataBlockSize="${RESULTS[3]}"
-NrUsedMetadataBlocks="${RESULTS[4]%%/*}"
-NrTotalMetadataBlocks="${RESULTS[4]##*/}"
+	MetadataBlockSize="${RESULTS[4]}"
+	NrUsedMetadataBlocks="${RESULTS[5]%%/*}"
+	NrTotalMetadataBlocks="${RESULTS[5]##*/}"
 
-CacheBlockSize="${RESULTS[5]}"
-NrUsedCacheBlocks="${RESULTS[6]%%/*}"
-NrTotalCacheBlocks="${RESULTS[6]##*/}"
+	CacheBlockSize="${RESULTS[6]}"
+	NrUsedCacheBlocks="${RESULTS[7]%%/*}"
+	NrTotalCacheBlocks="${RESULTS[7]##*/}"
 
-NrReadHits="${RESULTS[7]}"
-NrReadMisses="${RESULTS[8]}"
-NrWriteHits="${RESULTS[9]}"
-NrWriteMisses="${RESULTS[10]}"
+	NrReadHits="${RESULTS[8]}"
+	NrReadMisses="${RESULTS[9]}"
+	NrWriteHits="${RESULTS[10]}"
+	NrWriteMisses="${RESULTS[11]}"
 
-NrDemotions="${RESULTS[11]}"
-NrPromotions="${RESULTS[12]}"
-NrDirty="${RESULTS[13]}"
+	NrDemotions="${RESULTS[12]}"
+	NrPromotions="${RESULTS[13]}"
+	NrDirty="${RESULTS[14]}"
 
-INDEX=14
-NrFeatureArgs="${RESULTS[${INDEX}]}"
-FeatureArgs=""
+	NrFeatureArgs="${RESULTS[15]}"
+	FeatureArgs=(${RESULTS[@]:16:${NrFeatureArgs}})
 
-if [ ${NrFeatureArgs} -ne 0 ]; then
+	INDEX=$(( 16 + NrFeatureArgs ))
 
-  for ITEM in $(seq $((INDEX+1)) $((NrFeatureArgs+INDEX)) ); do
-     FeatureArgs="${FeatureArgs}${RESULTS[${ITEM}]} "
-  done
+	NrCoreArgs="${RESULTS[$(( INDEX++ ))]}"
+	CoreArgs=("${RESULTS[@]:${INDEX}:${NrCoreArgs}}")
+	(( INDEX += NrCoreArgs ))
 
-  INDEX=$((INDEX+NrFeatureArgs))
-fi
+	PolicyName="${RESULTS[$(( INDEX++ ))]}"
+	NrPolicyArgs="${RESULTS[$(( INDEX++ ))]}"
+	PolicyArgs=("${RESULTS[@]:${INDEX}:${NrPolicyArgs}}")
+	(( INDEX += NrPolicyArgs ))
 
-INDEX=$((INDEX+1))
-NrCoreArgs="${RESULTS[${INDEX}]}"
-CoreArgs=""
+	Mode="${RESULTS[$(( INDEX++ ))]}"
 
-if [ ${NrCoreArgs} -ne 0 ]; then
+	##################################################################
+	# human friendly output
+	##################################################################
+	echo "------------------------------------"
+	echo "LVM Cache report of ${VG}/${LV} (${Mode})"
+	echo "------------------------------------"
 
-  for ITEM in $(seq $((INDEX+1)) $((2*NrCoreArgs+INDEX)) ); do
-     CoreArgs="${CoreArgs}${RESULTS[${ITEM}]} "
-  done
+	MetaUsage=$( echo "scale=1;($NrUsedMetadataBlocks * 100) / $NrTotalMetadataBlocks" | bc)
+	CacheUsage=$( echo "scale=1;($NrUsedCacheBlocks * 100) / $NrTotalCacheBlocks" | bc)
+	echo "- Cache Usage: ${CacheUsage}% - Metadata Usage: ${MetaUsage}%"
 
-  INDEX=$((INDEX+2*NrCoreArgs))
-fi
-
-INDEX=$((INDEX+1))
-PolicyName="${RESULTS[${INDEX}]}"
-INDEX=$((INDEX+1))
-NrPolicyArgs="${RESULTS[${INDEX}]}"
-PolicyArgs=""
-
-if [ ${NrPolicyArgs} -ne 0 ]; then
-
-  for ITEM in $(seq $((INDEX+1)) $((2*NrPolicyArgs+INDEX)) ); do
-     PolicyArgs="${PolicyArgs}${RESULTS[${ITEM}]} "
-  done
-
-  INDEX=$((INDEX+2*NrPolicyArgs))
-fi
-
-##################################################################
-# human friendly output
-##################################################################
-echo "------------------------------------"
-echo "LVM Cache report of ${LVCACHED}"
-echo "------------------------------------"
-
-MetaUsage=$( echo "scale=1;($NrUsedMetadataBlocks * 100) / $NrTotalMetadataBlocks" | bc)
-CacheUsage=$( echo "scale=1;($NrUsedCacheBlocks * 100) / $NrTotalCacheBlocks" | bc)
-echo "- Cache Usage: ${CacheUsage}% - Metadata Usage: ${MetaUsage}%"
-
-ReadRate=$( echo "scale=1;($NrReadHits * 100) / ($NrReadMisses + $NrReadHits)" | bc)
-WriteRate=$( echo "scale=1;($NrWriteHits * 100) / ($NrWriteMisses + $NrWriteHits)" | bc)
-echo "- Read Hit Rate: ${ReadRate}% - Write Hit Rate: ${WriteRate}%"
-echo "- Demotions/Promotions/Dirty: ${NrDemotions}/${NrPromotions}/${NrDirty}"
-echo "- Features in use: ${FeatureArgs}"
-
-#### EOF #########################################################
-
+	ReadRate=$(bc <<<"scale=1;($NrReadHits * 100) / ($NrReadMisses + $NrReadHits)")
+	WriteRate=$(bc <<<"scale=1;($NrWriteHits * 100) / ($NrWriteMisses + $NrWriteHits)")
+	echo "- Read Hit Rate: ${ReadRate}% - Write Hit Rate: ${WriteRate}%"
+	echo "- Demotions/Promotions/Dirty: ${NrDemotions}/${NrPromotions}/${NrDirty}"
+	echo "- Features in use: ${FeatureArgs[@]}"
+	echo "- Policy in use: ${PolicyName} ${PolicyArgs[@]}"
+done
