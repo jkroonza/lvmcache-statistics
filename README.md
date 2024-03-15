@@ -4,7 +4,7 @@ lvmcache-statistics.sh displays the LVM cache statistics
 in a user friendly manner
 
 Copyright (C) 2014 Armin Hammer 
-Copyright (C) 2023 Jaco Kroon
+Copyright (C) 2023-2024 Jaco Kroon
 
 This program is free software: you can redistribute it and/or modify 
 it under the terms of the GNU General Public License as published by 
@@ -24,3 +24,4 @@ History:
 20230803 jkroon:
 * amended to auto-detect and report on all cache volumes.
 * work even if there are snapshots of cached volumes (albeit with extra -real after LV name)
+20240308 jkroon: Remove the -real if there.  This has other risks but the risk of someone naming a LV something-real is probably low.

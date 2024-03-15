@@ -43,8 +43,8 @@ while IFS=' ' read -a RESULTS <&3; do
 	# the VG or LV name will have a double - if there is a - in the name, eg:
 	# v--g-l--v for vg=v-g and lv=l-v.
 
-	if ! [[ "${RESULTS[0]}" =~ ^(([^-]|--)+)-(([^-]|--)+):$ ]]; then
-		echo "ERROR: Unable to parse VG-LV from ${RESULT[0]} (skipping)" >&2
+	if ! [[ "${RESULTS[0]}" =~ ^(([^-]|--)+)-(([^-]|--)+)(-real)?:$ ]]; then
+		echo "ERROR: Unable to parse VG-LV from ${RESULTS[0]} (skipping)" >&2
 		continue
 	fi
 
