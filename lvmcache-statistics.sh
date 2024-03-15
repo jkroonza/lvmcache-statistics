@@ -97,9 +97,9 @@ while IFS=' ' read -a RESULTS <&3; do
 	CacheUsage=$( echo "scale=1;($NrUsedCacheBlocks * 100) / $NrTotalCacheBlocks" | bc)
 	echo "- Cache Usage: ${CacheUsage}% - Metadata Usage: ${MetaUsage}%"
 
-	ReadRate=$(bc <<<"scale=1;($NrReadHits * 100) / ($NrReadMisses + $NrReadHits)")
-	WriteRate=$(bc <<<"scale=1;($NrWriteHits * 100) / ($NrWriteMisses + $NrWriteHits)")
-	echo "- Read Hit Rate: ${ReadRate}% - Write Hit Rate: ${WriteRate}%"
+	ReadRate=$(bc 2>/dev/null <<<"scale=1;($NrReadHits * 100) / ($NrReadMisses + $NrReadHits)")
+	WriteRate=$(bc 2>/dev/null <<<"scale=1;($NrWriteHits * 100) / ($NrWriteMisses + $NrWriteHits)")
+	echo "- Read Hit Rate: ${ReadRate:-na}% - Write Hit Rate: ${WriteRate:-na}%"
 	echo "- Demotions/Promotions/Dirty: ${NrDemotions}/${NrPromotions}/${NrDirty}"
 	echo "- Features in use: ${FeatureArgs[@]}"
 	echo "- Policy in use: ${PolicyName} ${PolicyArgs[@]}"

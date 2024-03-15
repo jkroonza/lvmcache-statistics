@@ -24,4 +24,6 @@ History:
 20230803 jkroon:
 * amended to auto-detect and report on all cache volumes.
 * work even if there are snapshots of cached volumes (albeit with extra -real after LV name)
-20240308 jkroon: Remove the -real if there.  This has other risks but the risk of someone naming a LV something-real is probably low.
+20240308 jkroon:
+* Remove the -real if there.  This has other risks but the risk of someone naming a LV something-real is probably low.
+* Hide division by zero errors when calculating read/write hit ratio's and display na% when this happens.
